@@ -1,0 +1,18 @@
+<div class="catalog-empty-state">
+  <i class="bi bi-inbox"></i>
+  <h4>No hay registros para mostrar</h4>
+
+  <% if search_term.present? %>
+    <p class="text-muted">
+      No se encontraron resultados para <strong>"<%= search_term %>"</strong>
+    </p>
+    <%= link_to clear_path, class: "btn btn-primary btn-sm mt-2" do %>
+      <i class="bi bi-arrow-left"></i> Ver todos
+    <% end %>
+  <% else %>
+    <p class="text-muted">Comienza creando un nuevo registro</p>
+    <%= link_to new_path, class: "btn btn-primary btn-sm mt-2" do %>
+      <i class="bi bi-plus-lg"></i> Crear
+    <% end %>
+  <% end %>
+</div>

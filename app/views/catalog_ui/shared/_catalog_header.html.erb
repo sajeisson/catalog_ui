@@ -1,0 +1,22 @@
+<div class="catalog-header">
+  <h2>
+    <i class="bi <%= icon %>"></i>
+    <%= title %>
+  </h2>
+  <div class="header-actions">
+    <% if local_assigns[:export_path] %>
+      <%= link_to export_path, class: "btn btn-outline-secondary btn-rounded" do %>
+        <% if respond_to?(:image_tag) %>
+          <%= image_tag 'icons/ms-excel-svgrepo-com.svg', alt: 'Excel', style: 'height: 20px; width: 20px;' rescue 'Exportar' %>
+        <% else %>
+          Exportar
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%= link_to new_path, class: "btn btn-indigo btn-block btn-rounded" do %>
+      <i class="bi bi-plus-lg me-1"></i>
+      <%= new_button_text %>
+    <% end %>
+  </div>
+</div>

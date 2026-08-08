@@ -1,0 +1,59 @@
+<div class="catalog-table-responsive">
+  <table class="catalog-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <% columns.each do |col| %>
+          <th style="<%= 'text-align: center;' if col[:center] %>">
+            <%= col[:header] %>
+          </th>
+        <% end %>
+        <th style="text-align: center;">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if collection.present? && collection.total_count > 0 %>
+        <% collection.each_with_index do |item, index| %>
+          <tr>
+            <td><%= collection.offset_value + index + 1 %></td>
+
+            <% columns.each do |col| %>
+              <td style="<%= 'text-align: center;' if col[:center] %>">
+                <%= render_catalog_cell(item, col, search_term: search_term) %>
+              </td>
+            <% end %>
+
+            <td>
+              <div class="catalog-actions">
+                <%= link_to polymorphic_path(item), class: "action-btn", title: "Ver" do %>
+                  <i class="bi bi-eye"></i>
+                <% end %>
+
+                <%= link_to edit_polymorphic_path(item), class: "action-btn", title: "Editar" do %>
+                  <i class="bi bi-pencil"></i>
+                <% end %>
+
+                <%= button_to polymorphic_path(item),
+                    method: :delete,
+                    data: { turbo_confirm: '¿Estás seguro de que quieres eliminar este registro?' },
+                    class: "action-btn danger p-0 border-0 bg-transparent",
+                    title: "Eliminar" do %>
+                  <i class="bi bi-trash3"></i>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr>
+          <td colspan="<%= columns.size + 2 %>">
+            <%= render 'catalog_ui/shared/catalog_empty_state',
+                search_term: search_term,
+                clear_path: clear_path,
+                new_path: new_path %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

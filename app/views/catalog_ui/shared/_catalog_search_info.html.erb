@@ -1,0 +1,10 @@
+<div class="catalog-search-info">
+  <i class="bi bi-info-circle" style="color: var(--catalog-primary);"></i>
+  <span>
+    Mostrando resultados para: <span class="highlight">"<%= search_term %>"</span>
+    (<%= total_count %> <%= total_count == 1 ? 'registro encontrado' : 'registros encontrados' %>)
+  </span>
+  <%= link_to clear_path, class: "btn btn-sm btn-outline-secondary clear-search" do %>
+    <i class="bi bi-x-lg"></i> Limpiar búsqueda
+  <% end %>
+</div>

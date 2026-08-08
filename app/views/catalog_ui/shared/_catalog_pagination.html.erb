@@ -1,0 +1,14 @@
+<% if collection.total_pages > 1 %>
+  <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+    <div class="text-muted small">
+      Mostrando <%= collection.offset_value + 1 %> - <%= [collection.offset_value + collection.length, collection.total_count].min %>
+      de <%= collection.total_count %> <%= label %>
+    </div>
+
+    <nav aria-label="Paginación">
+      <%= paginate collection,
+          theme: 'bootstrap-5',
+          params: { q: filtros.compact_blank } %>
+    </nav>
+  </div>
+<% end %>

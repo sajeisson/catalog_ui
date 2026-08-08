@@ -1,0 +1,74 @@
+<%#
+  Variables esperadas:
+    - title: String
+    - icon: String (clase de Bootstrap Icons)
+    - new_path: Path
+    - export_path: Path (opcional)
+    - search_path: Path
+    - clear_path: Path
+    - collection: Paginated collection
+    - columns: Array (definición de columnas)
+    - filters: Hash (definición de filtros)
+    - search_term: String (opcional)
+    - new_button_text: String (opcional)
+%>
+
+<div class="container-fluid container-with-margin-index">
+  <%= auto_breadcrumb if respond_to?(:auto_breadcrumb) %>
+
+  <div class="catalog-container">
+    <!-- HEADER -->
+    <%= render 'catalog_ui/shared/catalog_header',
+        title: title,
+        icon: icon,
+        new_path: new_path,
+        export_path: local_assigns[:export_path],
+        new_button_text: local_assigns[:new_button_text] || "Nuevo" %>
+
+    <!-- FILTROS -->
+    <%= render 'catalog_ui/shared/catalog_filters',
+        search_path: search_path,
+        clear_path: clear_path,
+        filters: filters %>
+
+    <!-- RESULTADO DE BÚSQUEDA -->
+    <% if search_term.present? %>
+      <%= render 'catalog_ui/shared/catalog_search_info',
+          search_term: search_term,
+          total_count: collection.total_count,
+          clear_path: clear_path %>
+    <% end %>
+
+    <!-- TABLA -->
+    <%= render 'catalog_ui/shared/catalog_table',
+        collection: collection,
+        columns: columns,
+        search_term: search_term,
+        new_path: new_path,
+        clear_path: clear_path %>
+
+    <!-- PAGINACIÓN -->
+    <% if collection.respond_to?(:total_pages) && collection.total_pages > 1 %>
+      <%= render 'catalog_ui/shared/catalog_pagination',
+          collection: collection,
+          label: title.downcase.split.last,
+          filtros: filters.transform_values { |v| params[v.is_a?(Hash) ? v.keys.first : v] } %>
+    <% end %>
+  </div>
+</div>
+
+<%= render 'shared/footer' if lookup_context.exists?('shared/footer', [], true) %>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.querySelector('.catalog-filters input[name="q[nombre]"], .catalog-filters input[name="nombre"]');
+    if (searchInput) {
+      searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.closest('form').submit();
+        }
+      });
+    }
+  });
+</script>

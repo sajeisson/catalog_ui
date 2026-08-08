@@ -1,0 +1,38 @@
+<div class="catalog-filters">
+  <%= form_with url: search_path, method: :get, local: true do %>
+    <div class="filter-row">
+      <% filters.each do |key, config| %>
+        <div class="filter-group <%= 'primary-search' if config[:primary] %>">
+          <label>
+            <i class="bi <%= config[:icon] %> me-1"></i>
+            <%= config[:label] %>
+          </label>
+
+          <% case config[:input_type] %>
+          <% when :select %>
+            <%= select_tag key,
+                options_for_select(config[:options], params[key]),
+                include_blank: config[:include_blank],
+                class: "form-control" %>
+          <% when :date %>
+            <%= date_field_tag key, params[key], class: "form-control", placeholder: config[:placeholder] %>
+          <% when :number %>
+            <%= number_field_tag key, params[key], class: "form-control", placeholder: config[:placeholder] %>
+          <% else %>
+            <%= text_field_tag key, params[key],
+                class: "form-control",
+                placeholder: config[:placeholder],
+                autofocus: config[:primary] %>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= hidden_field_tag :per_page, params[:per_page] || CatalogUi.default_per_page %>
+
+      <div class="filter-actions">
+        <%= submit_tag 'Buscar', class: "btn btn-success btn-sm" %>
+        <%= link_to 'Limpiar', clear_path, class: 'btn btn-outline-secondary btn-sm' %>
+      </div>
+    </div>
+  <% end %>
+</div>
