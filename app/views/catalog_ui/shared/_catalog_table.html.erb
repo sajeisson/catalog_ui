@@ -4,11 +4,19 @@
       <tr>
         <th>#</th>
         <% columns.each do |col| %>
-          <th style="<%= 'text-align: center;' if col[:center] %>">
-            <%= col[:header] %>
+          <th class="<%= 'text-center' if col[:center] %>">
+            <% if col[:sortable] %>
+              <%= link_to sort_url(col[:attribute], current_sort: params[:sort]),
+                  class: "sortable-header #{params[:sort]&.start_with?(col[:attribute].to_s) ? 'active' : ''}" do %>
+                <%= col[:header] %>
+                <%= sort_icon(col[:attribute], current_sort: params[:sort]) %>
+              <% end %>
+            <% else %>
+              <%= col[:header] %>
+            <% end %>
           </th>
         <% end %>
-        <th style="text-align: center;">Acciones</th>
+        <th class="text-center">Acciones</th>
       </tr>
     </thead>
     <tbody>
@@ -18,7 +26,7 @@
             <td><%= collection.offset_value + index + 1 %></td>
 
             <% columns.each do |col| %>
-              <td style="<%= 'text-align: center;' if col[:center] %>">
+              <td class="<%= 'text-center' if col[:center] %>">
                 <%= render_catalog_cell(item, col, search_term: search_term) %>
               </td>
             <% end %>

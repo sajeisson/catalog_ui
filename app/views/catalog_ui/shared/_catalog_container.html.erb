@@ -12,7 +12,6 @@
     - search_term: String (opcional)
     - new_button_text: String (opcional)
 %>
-
 <div class="container-fluid container-with-margin-index">
   <%= auto_breadcrumb if respond_to?(:auto_breadcrumb) %>
 
@@ -39,24 +38,69 @@
           clear_path: clear_path %>
     <% end %>
 
-    <!-- TABLA -->
-    <%= render 'catalog_ui/shared/catalog_table',
-        collection: collection,
-        columns: columns,
-        search_term: search_term,
-        new_path: new_path,
-        clear_path: clear_path %>
+    <!-- TOGGLE VISTA -->
+    <div class="catalog-view-toolbar">
+      <div class="catalog-result-count">
+        <%= collection.total_count %> <%= collection.total_count == 1 ? 'registro' : 'registros' %>
+      </div>
+
+      <div class="catalog-view-toggle">
+        <%= link_to view_toggle_url('table'),
+            class: "view-btn #{current_view_mode == 'table' ? 'active' : ''}",
+            title: "Vista tabla" do %>
+          <i class="bi bi-table"></i>
+        <% end %>
+
+        <%= link_to view_toggle_url('cards'),
+            class: "view-btn #{current_view_mode == 'cards' ? 'active' : ''}",
+            title: "Vista tarjetas" do %>
+          <i class="bi bi-grid-3x3-gap"></i>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- CONTENIDO: TABLA O TARJETAS -->
+    <% if current_view_mode == 'cards' %>
+      <%= render 'catalog_ui/shared/catalog_cards',
+          collection: collection,
+          columns: columns,
+          search_term: search_term,
+          new_path: new_path,
+          clear_path: clear_path %>
+    <% else %>
+      <%= render 'catalog_ui/shared/catalog_table',
+          collection: collection,
+          columns: columns,
+          search_term: search_term,
+          new_path: new_path,
+          clear_path: clear_path %>
+    <% end %>
 
     <!-- PAGINACIÓN -->
     <% if collection.respond_to?(:total_pages) && collection.total_pages > 1 %>
       <%= render 'catalog_ui/shared/catalog_pagination',
           collection: collection,
           label: title.downcase.split.last,
-          filtros: filters.transform_values { |v| params[v.is_a?(Hash) ? v.keys.first : v] } %>
+          filtros: filters.keys.index_with { |k| params[k] }.compact_blank %>
     <% end %>
   </div>
 </div>
 
+<%= render 'shared/footer' if lookup_context.exists?('shared/footer', [], true) %>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.querySelector('.catalog-filters input[name="q[nombre]"], .catalog-filters input[name="nombre"]');
+    if (searchInput) {
+      searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.closest('form').submit();
+        }
+      });
+    }
+  });
+</script>
 <%= render 'shared/footer' if lookup_context.exists?('shared/footer', [], true) %>
 
 <script>

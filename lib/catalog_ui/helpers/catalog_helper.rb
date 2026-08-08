@@ -2,6 +2,15 @@
 
 module CatalogUi
   module CatalogHelper
+    # Modo de vista
+    def current_view_mode
+      params[:view].presence || 'table'
+    end
+
+    def view_toggle_url(mode)
+      url_for(request.query_parameters.merge(view: mode, page: nil))
+    end
+
     # ============================================================
     # BUILDER DE COLUMNAS - API PÚBLICA
     # ============================================================
