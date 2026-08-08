@@ -1,14 +1,16 @@
 <% if collection.total_pages > 1 %>
-  <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-    <div class="text-muted small">
-      Mostrando <%= collection.offset_value + 1 %> - <%= [collection.offset_value + collection.length, collection.total_count].min %>
-      de <%= collection.total_count %> <%= label %>
+  <div class="catalog-pagination-wrapper">
+    <div class="catalog-pagination-info">
+      Mostrando <strong><%= collection.offset_value + 1 %></strong> - 
+      <strong><%= [collection.offset_value + collection.length, collection.total_count].min %></strong>
+      de <strong><%= collection.total_count %></strong> <%= label %>
     </div>
 
-    <nav aria-label="Paginación">
+    <div class="catalog-pagination-nav">
       <%= paginate collection,
-          theme: 'bootstrap-5',
-          params: { q: filtros.compact_blank } %>
-    </nav>
+          params: { q: filtros.compact_blank, view: params[:view] },
+          window: 2,
+          outer_window: 1 %>
+    </div>
   </div>
 <% end %>
