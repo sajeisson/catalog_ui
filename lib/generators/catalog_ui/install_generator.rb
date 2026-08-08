@@ -5,45 +5,49 @@ require "rails/generators"
 module CatalogUi
   module Generators
     class InstallGenerator < Rails::Generators::Base
-      source_root File.expand_path("../../../app", __dir__)  # Apunta a app/ de la gema
+      # Para templates (initializer.rb, README)
+      source_root File.expand_path("templates", __dir__)
 
-      desc "Instala CatalogUi en tu aplicación Rails (copia todos los archivos)"
+      # Rutas absolutas a los archivos de la gema
+      VIEWS_SOURCE      = File.expand_path("../../../app/views/catalog_ui", __dir__)
+      STYLES_SOURCE     = File.expand_path("../../../app/assets/stylesheets/catalog_ui", __dir__)
+
+      desc "Instala CatalogUi en tu aplicación Rails (copia vistas y estilos al proyecto)"
 
       def copy_initializer
-        template "templates/initializer.rb", "config/initializers/catalog_ui.rb"
+        template "initializer.rb", "config/initializers/catalog_ui.rb"
       end
 
       def copy_views
-        directory "views/catalog_ui", "app/views/catalog_ui"
+        if File.directory?(VIEWS_SOURCE)
+          directory VIEWS_SOURCE, "app/views/catalog_ui"
+        else
+          say "No se encontraron vistas en la gema", :yellow
+        end
       end
 
       def copy_stylesheets
-        directory "assets/stylesheets/catalog_ui", "app/assets/stylesheets/catalog_ui"
-      end
-
-      def copy_concern
-        copy_file "controllers/concerns/catalog_controller.rb", "app/controllers/concerns/catalog_ui_controller.rb"
-      end
-
-      def copy_helper
-        copy_file "helpers/catalog_helper.rb", "app/helpers/catalog_ui_helper.rb"
+        if File.directory?(STYLES_SOURCE)
+          directory STYLES_SOURCE, "app/assets/stylesheets/catalog_ui"
+        else
+          say "No se encontraron estilos en la gema", :yellow
+        end
       end
 
       def inject_stylesheet
-        app_css = "app/assets/stylesheets/application.css"
+        app_css  = "app/assets/stylesheets/application.css"
         app_scss = "app/assets/stylesheets/application.scss"
-        target = File.exist?(app_scss) ? app_scss : app_css
+        target   = File.exist?(app_scss) ? app_scss : app_css
 
-        if File.exist?(target)
-          # Solo si no está ya agregado
-          unless File.read(target).include?("catalog_ui/catalog")
-            inject_into_file target, "\n@import \"catalog_ui/catalog\";\n", before: /\z/
-          end
+        return unless File.exist?(target)
+
+        unless File.read(target).include?("catalog_ui/catalog")
+          inject_into_file target, "\n@import \"catalog_ui/catalog\";\n", before: /\z/
         end
       end
 
       def show_readme
-        readme "templates/README" if behavior == :invoke
+        readme "README" if behavior == :invoke
       end
     end
   end
