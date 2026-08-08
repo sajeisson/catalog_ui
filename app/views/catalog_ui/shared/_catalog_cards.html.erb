@@ -1,17 +1,22 @@
 <div class="catalog-cards-grid">
   <% if collection.present? && collection.total_count > 0 %>
     <% collection.each_with_index do |item, index| %>
+      <%
+        ns = Array(local_assigns[:routes_namespace]).compact
+        show_url = ns.any? ? url_for(ns + [item]) : url_for(item)
+        edit_url = ns.any? ? url_for(ns + [:edit, item]) : url_for([:edit, item])
+      %>
       <div class="catalog-card">
         <div class="catalog-card-header">
           <span class="catalog-card-number">#<%= collection.offset_value + index + 1 %></span>
           <div class="catalog-card-actions">
-            <%= link_to polymorphic_path(item), class: "action-btn", title: "Ver" do %>
+            <%= link_to show_url, class: "action-btn", title: "Ver" do %>
               <i class="bi bi-eye"></i>
             <% end %>
-            <%= link_to edit_polymorphic_path(item), class: "action-btn", title: "Editar" do %>
+            <%= link_to edit_url, class: "action-btn", title: "Editar" do %>
               <i class="bi bi-pencil"></i>
             <% end %>
-            <%= button_to polymorphic_path(item),
+            <%= button_to show_url,
                 method: :delete,
                 data: { turbo_confirm: '¿Estás seguro de que quieres eliminar este registro?' },
                 class: "action-btn danger p-0 border-0 bg-transparent",

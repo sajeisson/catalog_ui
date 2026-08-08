@@ -3,6 +3,7 @@
   CATALOG UI INSTALADO
 
 ================================================================================
+rails generate catalog_ui:install
 
 1. La gema está configurada en config/initializers/catalog_ui.rb
 

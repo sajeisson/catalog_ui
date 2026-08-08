@@ -14,7 +14,21 @@ module CatalogUi
     # ============================================================
     # BUILDER DE COLUMNAS - API PÚBLICA
     # ============================================================
-
+    def catalog_resource_path(item, namespace = nil, action: nil)
+      if namespace.present?
+        if action
+          send(:"#{Array(namespace).join('_')}_#{item.class.name.underscore}_path", item)
+        else
+          send(:"#{Array(namespace).join('_')}_#{item.class.name.underscore}_path", item)
+        end
+      else
+        action ? send(:"#{action}_#{item.class.name.underscore}_path", item) : polymorphic_path(item)
+      end
+    rescue NoMethodError
+      # Fallback si no encuentra la ruta
+      action ? url_for([action, item]) : url_for(item)
+    end
+    
     def catalog_columns
       builder = ColumnBuilder.new
       yield(builder) if block_given?
