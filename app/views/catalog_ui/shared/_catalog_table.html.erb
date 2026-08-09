@@ -22,11 +22,12 @@
     <tbody>
       <% if collection.present? && collection.total_count > 0 %>
         <% collection.each_with_index do |item, index| %>
-          <%
-            # Resuelve rutas con namespace si se proporciona
+          <% 
             ns = Array(local_assigns[:routes_namespace]).compact
-            show_url = ns.any? ? url_for(ns + [item]) : url_for(item)
-            edit_url = ns.any? ? url_for(ns + [:edit, item]) : url_for([:edit, item])
+            resource = local_assigns[:resource_name] || item.class.name.underscore
+            
+            show_url = ns.any? ? send("#{ns.join('_')}_#{resource}_path", item) : send("#{resource}_path", item)
+            edit_url = ns.any? ? send("edit_#{ns.join('_')}_#{resource}_path", item) : send("edit_#{resource}_path", item)
           %>
           <tr>
             <td><%= collection.offset_value + index + 1 %></td>

@@ -1,4 +1,4 @@
-<%#
+<%# 
   Variables esperadas:
     - title: String
     - icon: String (clase de Bootstrap Icons)
@@ -66,14 +66,18 @@
           columns: columns,
           search_term: search_term,
           new_path: new_path,
-          clear_path: clear_path %>
+          clear_path: clear_path,
+          routes_namespace: local_assigns[:routes_namespace],
+          resource_name: local_assigns[:resource_name] %> 
     <% else %>
       <%= render 'catalog_ui/shared/catalog_table',
           collection: collection,
           columns: columns,
           search_term: search_term,
           new_path: new_path,
-          clear_path: clear_path %>
+          clear_path: clear_path,
+          routes_namespace: local_assigns[:routes_namespace],
+          resource_name: local_assigns[:resource_name] %> 
     <% end %>
 
     <!-- PAGINACIÓN -->
@@ -86,21 +90,6 @@
   </div>
 </div>
 
-<%= render 'shared/footer' if lookup_context.exists?('shared/footer', [], true) %>
-
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.querySelector('.catalog-filters input[name="q[nombre]"], .catalog-filters input[name="nombre"]');
-    if (searchInput) {
-      searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          this.closest('form').submit();
-        }
-      });
-    }
-  });
-</script>
 <%= render 'shared/footer' if lookup_context.exists?('shared/footer', [], true) %>
 
 <script>
