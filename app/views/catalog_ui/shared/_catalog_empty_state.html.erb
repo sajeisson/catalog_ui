@@ -1,18 +1,48 @@
+
+<%
+  normalized_search_term =
+    if search_term.is_a?(String) || search_term.is_a?(Numeric)
+      search_term.to_s.strip
+    else
+      ''
+    end
+
+  has_search_term = normalized_search_term.present?
+  available_clear_path = local_assigns[:clear_path].presence
+  available_new_path = local_assigns[:new_path].presence
+%>
+
 <div class="catalog-empty-state">
-  <i class="bi bi-inbox"></i>
+  <i class="bi bi-inbox" aria-hidden="true"></i>
+
   <h4>No hay registros para mostrar</h4>
 
-  <% if search_term.present? %>
+  <% if has_search_term %>
     <p class="text-muted">
-      No se encontraron resultados para <strong>"<%= search_term %>"</strong>
+      No se encontraron resultados para
+      <strong>"<%= normalized_search_term %>"</strong>.
     </p>
-    <%= link_to clear_path, class: "btn btn-primary btn-sm mt-2" do %>
-      <i class="bi bi-arrow-left"></i> Ver todos
+
+    <% if available_clear_path %>
+      <%= link_to available_clear_path,
+          class: 'btn btn-primary btn-sm mt-2',
+          aria: { label: 'Limpiar filtros y ver todos los registros' } do %>
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+        Ver todos
+      <% end %>
     <% end %>
   <% else %>
-    <p class="text-muted">Comienza creando un nuevo registro</p>
-    <%= link_to new_path, class: "btn btn-primary btn-sm mt-2" do %>
-      <i class="bi bi-plus-lg"></i> Crear
+    <p class="text-muted">
+      Comienza creando un nuevo registro.
+    </p>
+
+    <% if available_new_path %>
+      <%= link_to available_new_path,
+          class: 'btn btn-primary btn-sm mt-2',
+          aria: { label: 'Crear un nuevo registro' } do %>
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        Crear
+      <% end %>
     <% end %>
   <% end %>
 </div>

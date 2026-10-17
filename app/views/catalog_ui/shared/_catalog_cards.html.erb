@@ -1,29 +1,74 @@
+
 <div class="catalog-cards-grid">
-  <% if collection.present? && collection.total_count > 0 %>
+  <% if collection.present? %>
     <% collection.each_with_index do |item, index| %>
-          <% 
-            ns = Array(local_assigns[:routes_namespace]).compact
-            resource = local_assigns[:resource_name] || item.class.name.underscore
-            
-            show_url = ns.any? ? send("#{ns.join('_')}_#{resource}_path", item) : send("#{resource}_path", item)
-            edit_url = ns.any? ? send("edit_#{ns.join('_')}_#{resource}_path", item) : send("edit_#{resource}_path", item)
-          %>
+      <%
+        namespace_parts = Array(local_assigns[:routes_namespace]).compact
+        resource = local_assigns[:resource_name].presence || item.class.name.underscore
+
+        route_parts = namespace_parts + [resource]
+
+        valid_route_parts = route_parts.all? do |part|
+          part.to_s.match?(/\A[a-zA-Z_]\w*\z/)
+        end
+
+        raise ArgumentError, 'Namespace o nombre de recurso no válido' unless valid_route_parts
+
+        route_prefix = namespace_parts.any? ? "#{namespace_parts.join('_')}_" : ''
+
+        show_helper = "#{route_prefix}#{resource}_path"
+        edit_helper = "edit_#{route_prefix}#{resource}_path"
+
+        show_url =
+          public_send(show_helper, item) if respond_to?(show_helper)
+
+        edit_url =
+          public_send(edit_helper, item) if respond_to?(edit_helper)
+
+        row_number =
+          if collection.respond_to?(:offset_value)
+            collection.offset_value + index + 1
+          else
+            index + 1
+          end
+      %>
+
       <div class="catalog-card">
         <div class="catalog-card-header">
-          <span class="catalog-card-number">#<%= collection.offset_value + index + 1 %></span>
+          <span class="catalog-card-number">
+            #<%= row_number %>
+          </span>
+
           <div class="catalog-card-actions">
-            <%= link_to show_url, class: "action-btn", title: "Ver" do %>
-              <i class="bi bi-eye"></i>
+            <% if show_url %>
+              <%= link_to show_url,
+                  class: 'action-btn',
+                  title: 'Ver',
+                  aria: { label: 'Ver registro' } do %>
+                <i class="bi bi-eye" aria-hidden="true"></i>
+              <% end %>
+
+              <%= button_to show_url,
+                  method: :delete,
+                  form: {
+                    data: {
+                      turbo_confirm: '¿Estás seguro de que quieres eliminar este registro?'
+                    }
+                  },
+                  class: 'action-btn danger p-0 border-0 bg-transparent',
+                  title: 'Eliminar',
+                  aria: { label: 'Eliminar registro' } do %>
+                <i class="bi bi-trash3" aria-hidden="true"></i>
+              <% end %>
             <% end %>
-            <%= link_to edit_url, class: "action-btn", title: "Editar" do %>
-              <i class="bi bi-pencil"></i>
-            <% end %>
-            <%= button_to show_url,
-                method: :delete,
-                data: { turbo_confirm: '¿Estás seguro de que quieres eliminar este registro?' },
-                class: "action-btn danger p-0 border-0 bg-transparent",
-                title: "Eliminar" do %>
-              <i class="bi bi-trash3"></i>
+
+            <% if edit_url %>
+              <%= link_to edit_url,
+                  class: 'action-btn',
+                  title: 'Editar',
+                  aria: { label: 'Editar registro' } do %>
+                <i class="bi bi-pencil" aria-hidden="true"></i>
+              <% end %>
             <% end %>
           </div>
         </div>
@@ -31,9 +76,16 @@
         <div class="catalog-card-body">
           <% columns.each do |col| %>
             <div class="catalog-card-field <%= 'text-center' if col[:center] %>">
-              <span class="catalog-card-label"><%= col[:header] %></span>
+              <span class="catalog-card-label">
+                <%= col[:header] %>
+              </span>
+
               <span class="catalog-card-value">
-                <%= render_catalog_cell(item, col, search_term: search_term) %>
+                <%= render_catalog_cell(
+                  item,
+                  col,
+                  search_term: search_term
+                ) %>
               </span>
             </div>
           <% end %>

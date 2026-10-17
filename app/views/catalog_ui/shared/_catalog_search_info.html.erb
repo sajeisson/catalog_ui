@@ -1,10 +1,45 @@
-<div class="catalog-search-info">
-  <i class="bi bi-info-circle" style="color: var(--catalog-primary);"></i>
-  <span>
-    Mostrando resultados para: <span class="highlight">"<%= search_term %>"</span>
-    (<%= total_count %> <%= total_count == 1 ? 'registro encontrado' : 'registros encontrados' %>)
-  </span>
-  <%= link_to clear_path, class: "btn btn-sm btn-outline-secondary clear-search" do %>
-    <i class="bi bi-x-lg"></i> Limpiar búsqueda
-  <% end %>
-</div>
+
+<%
+  normalized_search_term =
+    if search_term.is_a?(String) || search_term.is_a?(Numeric)
+      search_term.to_s.strip
+    else
+      ''
+    end
+
+  normalized_total_count =
+    begin
+      Integer(total_count)
+    rescue ArgumentError, TypeError
+      0
+    end
+
+  normalized_total_count = [normalized_total_count, 0].max
+  available_clear_path = local_assigns[:clear_path].presence
+%>
+
+<% if normalized_search_term.present? %>
+  <div class="catalog-search-info" role="status" aria-live="polite">
+    <i
+      class="bi bi-info-circle"
+      style="color: var(--catalog-primary);"
+      aria-hidden="true">
+    </i>
+
+    <span>
+      Mostrando resultados para:
+      <span class="highlight">"<%= normalized_search_term %>"</span>
+      (<%= normalized_total_count %>
+      <%= normalized_total_count == 1 ? 'registro encontrado' : 'registros encontrados' %>)
+    </span>
+
+    <% if available_clear_path %>
+      <%= link_to available_clear_path,
+          class: 'btn btn-sm btn-outline-secondary clear-search',
+          aria: { label: 'Limpiar búsqueda y filtros' } do %>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+        Limpiar búsqueda
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

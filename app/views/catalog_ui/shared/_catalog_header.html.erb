@@ -1,22 +1,43 @@
+
+<%
+  header_title = title.to_s
+  header_icon = icon.to_s
+  button_text = new_button_text.to_s
+
+  unless header_icon.match?(/\Abi-[a-zA-Z0-9-]+\z/)
+    header_icon = 'bi-grid'
+  end
+
+  export_enabled = local_assigns[:export_path].present?
+%>
+
 <div class="catalog-header">
   <h2>
-    <i class="bi <%= icon %>"></i>
-    <%= title %>
+    <i class="bi <%= header_icon %>" aria-hidden="true"></i>
+    <%= header_title %>
   </h2>
+
   <div class="header-actions">
-    <% if local_assigns[:export_path] %>
-      <%= link_to export_path, class: "btn btn-outline-secondary btn-rounded" do %>
-        <% if respond_to?(:image_tag) %>
-          <%= image_tag 'icons/ms-excel-svgrepo-com.svg', alt: 'Excel', style: 'height: 20px; width: 20px;' rescue 'Exportar' %>
-        <% else %>
-          Exportar
-        <% end %>
+    <% if export_enabled %>
+      <%= link_to export_path,
+          class: 'btn btn-outline-secondary btn-rounded',
+          aria: { label: 'Exportar registros a Excel' },
+          title: 'Exportar a Excel' do %>
+        <%= image_tag 'icons/ms-excel-svgrepo-com.svg',
+            alt: '',
+            aria: { hidden: true },
+            style: 'height: 20px; width: 20px;' %>
+        <span>Exportar</span>
       <% end %>
     <% end %>
 
-    <%= link_to new_path, class: "btn btn-indigo btn-rounded" do %>
-      <i class="bi bi-plus-lg me-1"></i>
-      <%= new_button_text %>
+    <% if local_assigns[:new_path].present? %>
+      <%= link_to new_path,
+          class: 'btn btn-indigo btn-rounded',
+          aria: { label: "Crear #{button_text}" } do %>
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+        <%= button_text %>
+      <% end %>
     <% end %>
   </div>
 </div>

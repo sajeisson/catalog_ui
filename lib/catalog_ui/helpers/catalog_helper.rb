@@ -119,55 +119,85 @@ module CatalogUi
     # COLUMN BUILDER
     # ============================================================
 
-    class ColumnBuilder
-      attr_reader :columns
 
-      VALID_TYPES = %i[text badge].freeze
+  class ColumnBuilder
+    attr_reader :columns
 
-      def initialize
-        @columns = []
+    VALID_TYPES = %i[text badge].freeze
+
+    def initialize
+      @columns = []
+    end
+
+    def column(attribute, header: nil, as: :text, center: false, **options, &block)
+      attribute_name = attribute.to_s
+
+      unless attribute_name.match?(/\A[a-zA-Z_]\w*[!?]?\z/)
+        raise ArgumentError, "Atributo de columna no válido: #{attribute.inspect}"
       end
 
-      def column(attribute, header: nil, as: :text, center: false, **options, &block)
-        attribute_name = attribute.to_s
-
-        unless attribute_name.match?(/\A[a-zA-Z_]\w*[!?]?\z/)
-          raise ArgumentError, "Atributo de columna no válido: #{attribute.inspect}"
+      type =
+        begin
+          as.to_sym
+        rescue NoMethodError
+          nil
         end
 
-        type = as.to_sym
+      unless VALID_TYPES.include?(type)
+        raise ArgumentError, "Tipo de columna no compatible: #{as.inspect}"
+      end
 
-        unless VALID_TYPES.include?(type)
-          raise ArgumentError, "Tipo de columna no compatible: #{as.inspect}"
-        end
+      truncate_length = normalize_truncate(options[:truncate])
 
-        if options[:truncate]
-          length = Integer(options[:truncate], 10) rescue nil
+      col = {
+        attribute: attribute,
+        header: header.presence || attribute_name.humanize,
+        as: type,
+        center: !!center,
+        block: block,
+        sortable: !!options[:sortable]
+      }
 
-          unless length && length.positive?
+      if type == :text
+        col[:highlight] = !!options[:highlight]
+        col[:truncate] = truncate_length
+      elsif type == :badge
+        col[:badge_class] = options[:badge_class].presence || 'info'
+        col[:badge_icon] = options[:badge_icon]
+      end
+
+      @columns << col
+    end
+
+    private
+
+    def normalize_truncate(value)
+      return nil if value.nil?
+
+      length =
+        case value
+        when Integer
+          value
+        when String
+          return nil if value.strip.empty?
+
+          unless value.match?(/\A\d+\z/)
             raise ArgumentError, 'truncate debe ser un entero mayor que cero'
           end
+
+          value.to_i
+        else
+          raise ArgumentError, 'truncate debe ser un entero mayor que cero'
         end
 
-        col = {
-          attribute: attribute,
-          header: header || attribute_name.humanize,
-          as: type,
-          center: !!center,
-          block: block
-        }
-
-        if type == :text
-          col[:highlight] = !!options[:highlight]
-          col[:truncate] = options[:truncate]&.to_i
-        elsif type == :badge
-          col[:badge_class] = options[:badge_class] || 'info'
-          col[:badge_icon] = options[:badge_icon]
-        end
-
-        @columns << col
+      unless length.positive?
+        raise ArgumentError, 'truncate debe ser un entero mayor que cero'
       end
+
+      length
     end
+  end
+
 
     # ============================================================
     # FILTER BUILDER

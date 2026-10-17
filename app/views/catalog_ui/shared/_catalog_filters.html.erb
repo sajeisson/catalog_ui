@@ -1,37 +1,111 @@
+
 <div class="catalog-filters">
   <%= form_with url: search_path, method: :get, local: true do %>
     <div class="filter-row">
       <% filters.each do |key, config| %>
-        <div class="filter-group <%= 'primary-search' if config[:primary] %>">
-          <label>
-            <i class="bi <%= config[:icon] %> me-1"></i>
-            <%= config[:label] %>
-          </label>
+        <%
+          filter_key = key.to_s
 
-          <% case config[:input_type] %>
+          unless filter_key.match?(/\A[a-zA-Z_]\w*\z/)
+            raise ArgumentError, "Nombre de filtro no válido: #{filter_key.inspect}"
+          end
+
+          config = config.to_h
+          input_type = config[:input_type]&.to_sym
+
+          allowed_input_types = %i[select date number]
+          input_type = nil unless allowed_input_types.include?(input_type)
+
+          field_id = "catalog_filter_#{filter_key}"
+          primary = config[:primary] == true
+
+          icon_class = config[:icon].to_s
+          unless icon_class.match?(/\Abi(?:\s+bi-[a-zA-Z0-9-]+)+\z/) ||
+                 icon_class.match?(/\Abi-[a-zA-Z0-9-]+\z/)
+            icon_class = 'bi-funnel'
+          end
+
+          field_value = params[filter_key]
+          field_value = field_value.to_s if field_value.is_a?(String) || field_value.is_a?(Numeric)
+          field_value = nil unless field_value.is_a?(String)
+
+          placeholder = config[:placeholder].to_s
+          placeholder = nil if placeholder.empty?
+
+          label_text = config[:label].to_s
+        %>
+
+        <div class="filter-group <%= 'primary-search' if primary %>">
+          <%= label_tag field_id do %>
+            <i class="bi <%= icon_class %> me-1" aria-hidden="true"></i>
+            <%= label_text %>
+          <% end %>
+
+          <% case input_type %>
           <% when :select %>
-            <%= select_tag key,
-                options_for_select(config[:options], params[key]),
-                include_blank: config[:include_blank],
-                class: "form-control" %>
+            <%
+              raw_options = config[:options]
+              safe_options =
+                if raw_options.respond_to?(:to_a)
+                  raw_options.to_a
+                else
+                  []
+                end
+            %>
+
+            <%= select_tag filter_key,
+                options_for_select(safe_options, field_value),
+                id: field_id,
+                include_blank: config[:include_blank] != false,
+                class: 'form-control' %>
+
           <% when :date %>
-            <%= date_field_tag key, params[key], class: "form-control", placeholder: config[:placeholder] %>
+            <%= date_field_tag filter_key,
+                field_value,
+                id: field_id,
+                class: 'form-control',
+                placeholder: placeholder %>
+
           <% when :number %>
-            <%= number_field_tag key, params[key], class: "form-control", placeholder: config[:placeholder] %>
+            <%= number_field_tag filter_key,
+                field_value,
+                id: field_id,
+                class: 'form-control',
+                placeholder: placeholder %>
+
           <% else %>
-            <%= text_field_tag key, params[key],
-                class: "form-control",
-                placeholder: config[:placeholder],
-                autofocus: config[:primary] %>
+            <%= text_field_tag filter_key,
+                field_value,
+                id: field_id,
+                class: 'form-control',
+                placeholder: placeholder,
+                autofocus: primary %>
           <% end %>
         </div>
       <% end %>
 
-      <%= hidden_field_tag :per_page, params[:per_page] || CatalogUi.default_per_page %>
+      <%
+        configured_per_page = CatalogUi.default_per_page
+        requested_per_page = params[:per_page].to_s
+
+        allowed_per_page = [10, 20, 25, 50, 100].map(&:to_s)
+
+        per_page =
+          if allowed_per_page.include?(requested_per_page)
+            requested_per_page
+          else
+            configured_per_page
+          end
+      %>
+
+      <%= hidden_field_tag :per_page, per_page %>
 
       <div class="filter-actions">
-        <%= submit_tag 'Buscar', class: "btn btn-success btn-sm" %>
-        <%= link_to 'Limpiar', clear_path, class: 'btn btn-outline-secondary btn-sm' %>
+        <%= submit_tag 'Buscar', class: 'btn btn-success btn-sm' %>
+
+        <%= link_to 'Limpiar',
+            clear_path,
+            class: 'btn btn-outline-secondary btn-sm' %>
       </div>
     </div>
   <% end %>
