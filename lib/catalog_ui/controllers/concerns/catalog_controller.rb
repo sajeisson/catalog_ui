@@ -10,7 +10,7 @@ module CatalogUi
 
     included do
       before_action :set_catalog_config
-      helper_method :catalog_config
+      helper_method :catalog_config, :catalog_search_term
     end
 
     # ============================================================
@@ -56,14 +56,14 @@ module CatalogUi
     # Devuelve un término textual para resaltar coincidencias en la vista.
     #
     # Prioridad:
-    #   1. params[:nombre]
-    #   2. params[:search]
+    #   1. Búsqueda global (params[:search])
+    #   2. Filtro principal legado (params[:nombre])
     #   3. Primer valor textual escalar de params[:q]
     #
     # Los parámetros anidados de Ransack no se convierten en texto.
     def catalog_search_term
-      direct_term = normalized_search_value(params[:nombre])
-      direct_term ||= normalized_search_value(params[:search])
+      direct_term = normalized_search_value(params[:search])
+      direct_term ||= normalized_search_value(params[:nombre])
 
       return direct_term if direct_term.present?
 
@@ -77,6 +77,72 @@ module CatalogUi
       end
 
       nil
+    end
+
+    # Búsqueda global en columnas del modelo, útil para un comportamiento
+    # similar al buscador general de DataTables.
+    #
+    # Por defecto busca en columnas escalares de texto y numéricas.
+    # Se puede limitar explícitamente con catalog_config[:search_fields].
+    #
+    # Uso en el index:
+    #   @clients = catalog_apply_search(@clients)
+    def catalog_apply_search(relation, term: params[:search], fields: nil)
+      return relation unless valid_sort_relation?(relation)
+
+      search_term = normalized_search_value(term)
+      return relation if search_term.blank?
+
+      model = relation.klass
+      allowed_fields = fields || @catalog_config[:search_fields]
+      allowed_fields ||= model.columns.select do |column|
+        %i[string text integer bigint float decimal].include?(column.type)
+      end.map(&:name)
+
+      allowed_fields = Array(allowed_fields).map(&:to_s)
+      allowed_fields &= model.column_names
+      allowed_fields.select! { |field| field.match?(/\\A[a-zA-Z_]\\w*\\z/) }
+      return relation if allowed_fields.empty?
+
+      connection = model.connection
+      table_name = connection.quote_table_name(model.table_name)
+      adapter = connection.adapter_name.to_s.downcase
+      escaped_term = ActiveRecord::Base.sanitize_sql_like(search_term)
+      pattern = "%#{escaped_term}%"
+
+      conditions = allowed_fields.map do |field|
+        column_name = connection.quote_column_name(field)
+        qualified_column = "#{table_name}.#{column_name}"
+
+        if %w[postgresql postgresqladapter].any? { |name| adapter.include?(name) }
+          "CAST(#{qualified_column} AS TEXT) ILIKE ?"
+        elsif adapter.include?('mysql')
+          "CAST(#{qualified_column} AS CHAR) LIKE ?"
+        elsif adapter.include?('sqlserver')
+          "CAST(#{qualified_column} AS NVARCHAR(MAX)) LIKE ?"
+        else
+          "CAST(#{qualified_column} AS TEXT) LIKE ?"
+        end
+      end
+
+      relation.where(conditions.join(' OR '), *Array.new(conditions.length, pattern))
+    end
+
+    # Normaliza per_page y aplica el máximo configurable.
+    def catalog_per_page
+      configured_default = catalog_config[:default_per_page].to_i
+      configured_default = CatalogUi.default_per_page.to_i unless configured_default.positive?
+      configured_default = 10 unless configured_default.positive?
+
+      maximum = CatalogUi.max_per_page.to_i
+      maximum = 100 unless maximum.positive?
+
+      requested = params[:per_page]
+      requested = requested.to_s if requested.is_a?(Integer)
+      return [configured_default, maximum].min unless requested.is_a?(String)
+      return [configured_default, maximum].min unless requested.match?(/\\A\\d{1,3}\\z/)
+
+      [[requested.to_i, 1].max, maximum].min
     end
 
     private

@@ -22,6 +22,38 @@ module CatalogUi
       url_for(request.query_parameters.merge(view: mode, page: nil))
     end
 
+    # Construye la URL para ordenar una columna y conserva los filtros activos.
+    def sort_url(attribute, current_sort: params[:sort])
+      field = attribute.to_s
+      unless field.match?(/\\A[a-zA-Z_]\\w*\\z/)
+        raise ArgumentError, "Atributo de ordenamiento no válido: #{attribute.inspect}"
+      end
+
+      current_field, separator, current_direction = current_sort.to_s.rpartition('_')
+      direction =
+        if separator.present? && current_field == field && current_direction == 'asc'
+          'desc'
+        else
+          'asc'
+        end
+
+      url_for(request.query_parameters.merge(sort: "#{field}_#{direction}", page: nil))
+    end
+
+    # Devuelve el icono visual del ordenamiento actual.
+    def sort_icon(attribute, current_sort: params[:sort])
+      field = attribute.to_s
+      current_field, separator, direction = current_sort.to_s.rpartition('_')
+
+      icon = if separator.present? && current_field == field
+               direction == 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'
+             else
+               'bi-arrow-down-up'
+             end
+
+      content_tag(:i, '', class: "bi #{icon} ms-1", aria: { hidden: true })
+    end
+
     # ============================================================
     # RUTAS DE RECURSOS
     # ============================================================
