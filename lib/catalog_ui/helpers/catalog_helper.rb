@@ -3,12 +3,12 @@
 
 module CatalogUi
   module CatalogHelper
-    # Métodos públicos de presentación
+    # ============================================================
+    # MÉTODOS PÚBLICOS DE PRESENTACIÓN
     # ============================================================
 
     def current_view_mode
       mode = params[:view].to_s
-
       %w[table cards].include?(mode) ? mode : 'table'
     end
 
@@ -22,51 +22,71 @@ module CatalogUi
       url_for(request.query_parameters.merge(view: mode, page: nil))
     end
 
-    # Construye la URL para ordenar una columna y conserva los filtros activos.
-    def sort_url(attribute, current_sort: params[:sort])
-      field = attribute.to_s
-      unless field.match?(/\\A[a-zA-Z_]\\w*\\z/)
-        raise ArgumentError, "Atributo de ordenamiento no válido: #{attribute.inspect}"
-      end
+    # ============================================================
+    # ORDENAMIENTO
+    # ============================================================
 
-      current_field, separator, current_direction = current_sort.to_s.rpartition('_')
+    # Acepta símbolos y cadenas:
+    # sort_url(:nit)
+    # sort_url('created_at')
+    #
+    # Conserva los filtros de la URL y alterna asc/desc.
+    def sort_url(attribute, current_sort: params[:sort])
+      field = normalize_column_attribute!(attribute)
+
+      current_field, separator, current_direction =
+        current_sort.to_s.rpartition('_')
+
       direction =
-        if separator.present? && current_field == field && current_direction == 'asc'
+        if separator.present? &&
+           current_field == field &&
+           current_direction == 'asc'
           'desc'
         else
           'asc'
         end
 
-      url_for(request.query_parameters.merge(sort: "#{field}_#{direction}", page: nil))
+      url_for(
+        request.query_parameters.merge(
+          sort: "#{field}_#{direction}",
+          page: nil
+        )
+      )
     end
 
-    # Devuelve el icono visual del ordenamiento actual.
+    # Devuelve la clase del icono de ordenamiento.
     def sort_icon(attribute, current_sort: params[:sort])
-      field = attribute.to_s
-      current_field, separator, direction = current_sort.to_s.rpartition('_')
+      field = normalize_column_attribute!(attribute)
 
-      icon = if separator.present? && current_field == field
-               direction == 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'
-             else
-               'bi-arrow-down-up'
-             end
+      current_field, separator, direction =
+        current_sort.to_s.rpartition('_')
 
-      content_tag(:i, '', class: "bi #{icon} ms-1", aria: { hidden: true })
+      icon =
+        if separator.present? && current_field == field
+          direction == 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'
+        else
+          'bi-arrow-down-up'
+        end
+
+      content_tag(
+        :i,
+        '',
+        class: "bi #{icon} ms-1",
+        aria: { hidden: true }
+      )
     end
 
     # ============================================================
     # RUTAS DE RECURSOS
     # ============================================================
 
-    # Genera rutas convencionales de Rails.
-    #
     # Ejemplos:
-    #   catalog_resource_path(cliente)
-    #   catalog_resource_path(cliente, :admin)
-    #   catalog_resource_path(cliente, :admin, action: :edit)
+    #   catalog_resource_path(client)
+    #   catalog_resource_path(client, :admin)
+    #   catalog_resource_path(client, :admin, action: :edit)
     #
-    # Para acciones personalizadas, utiliza explícitamente el helper
-    # de rutas correspondiente desde la vista o el bloque de columna.
+    # Para acciones personalizadas, utiliza el helper de rutas
+    # correspondiente directamente desde la vista.
     def catalog_resource_path(item, namespace = nil, action: nil)
       raise ArgumentError, 'El recurso no puede estar vacío' if item.nil?
 
@@ -76,13 +96,10 @@ module CatalogUi
         raise ArgumentError, 'El namespace contiene un segmento no válido'
       end
 
-      action = normalize_route_action(action)
+      normalized_action = normalize_route_action(action)
 
       route_parts = []
-
-      # En las rutas polimórficas de Rails, la acción precede
-      # al namespace: [:edit, :admin, recurso].
-      route_parts << action if %i[edit new].include?(action)
+      route_parts << normalized_action if %i[edit new].include?(normalized_action)
       route_parts.concat(namespaces)
       route_parts << item
 
@@ -111,10 +128,13 @@ module CatalogUi
 
     def render_catalog_cell(item, column, search_term: nil)
       raise ArgumentError, 'El recurso no puede estar vacío' if item.nil?
-      raise ArgumentError, 'La columna debe ser un Hash' unless column.is_a?(Hash)
 
-      # Los bloques personalizados mantienen la flexibilidad de la API.
-      # capture conserva el comportamiento de renderizado de Rails.
+      unless column.is_a?(Hash)
+        raise ArgumentError, 'La columna debe ser un Hash'
+      end
+
+      # Las columnas con bloques personalizados no necesitan
+      # leer directamente un atributo del modelo.
       if column[:block]
         unless column[:block].respond_to?(:call)
           raise ArgumentError, 'El bloque de la columna no es ejecutable'
@@ -151,85 +171,87 @@ module CatalogUi
     # COLUMN BUILDER
     # ============================================================
 
+    class ColumnBuilder
+      attr_reader :columns
 
-  class ColumnBuilder
-    attr_reader :columns
+      VALID_TYPES = %i[text badge].freeze
 
-    VALID_TYPES = %i[text badge].freeze
-
-    def initialize
-      @columns = []
-    end
-
-    def column(attribute, header: nil, as: :text, center: false, **options, &block)
-      attribute_name = attribute.to_s
-
-      unless attribute_name.match?(/\A[a-zA-Z_]\w*[!?]?\z/)
-        raise ArgumentError, "Atributo de columna no válido: #{attribute.inspect}"
+      def initialize
+        @columns = []
       end
 
-      type =
-        begin
-          as.to_sym
-        rescue NoMethodError
-          nil
+      def column(attribute, header: nil, as: :text, center: false, **options, &block)
+        attribute_name = attribute.to_s
+
+        unless valid_attribute_name?(attribute_name)
+          raise ArgumentError, "Atributo de columna no válido: #{attribute.inspect}"
         end
 
-      unless VALID_TYPES.include?(type)
-        raise ArgumentError, "Tipo de columna no compatible: #{as.inspect}"
+        type =
+          begin
+            as.to_sym
+          rescue NoMethodError
+            nil
+          end
+
+        unless VALID_TYPES.include?(type)
+          raise ArgumentError, "Tipo de columna no compatible: #{as.inspect}"
+        end
+
+        truncate_length = normalize_truncate(options[:truncate])
+
+        column_config = {
+          attribute: attribute,
+          header: header.presence || attribute_name.humanize,
+          as: type,
+          center: !!center,
+          block: block,
+          sortable: !!options[:sortable]
+        }
+
+        if type == :text
+          column_config[:highlight] = !!options[:highlight]
+          column_config[:truncate] = truncate_length
+        elsif type == :badge
+          column_config[:badge_class] = options[:badge_class].presence || 'info'
+          column_config[:badge_icon] = options[:badge_icon]
+        end
+
+        @columns << column_config
       end
 
-      truncate_length = normalize_truncate(options[:truncate])
+      private
 
-      col = {
-        attribute: attribute,
-        header: header.presence || attribute_name.humanize,
-        as: type,
-        center: !!center,
-        block: block,
-        sortable: !!options[:sortable]
-      }
+      def normalize_truncate(value)
+        return nil if value.nil?
 
-      if type == :text
-        col[:highlight] = !!options[:highlight]
-        col[:truncate] = truncate_length
-      elsif type == :badge
-        col[:badge_class] = options[:badge_class].presence || 'info'
-        col[:badge_icon] = options[:badge_icon]
-      end
+        length =
+          case value
+          when Integer
+            value
+          when String
+            return nil if value.strip.empty?
 
-      @columns << col
-    end
+            unless value.match?(/\A\d+\z/)
+              raise ArgumentError, 'truncate debe ser un entero mayor que cero'
+            end
 
-    private
-
-    def normalize_truncate(value)
-      return nil if value.nil?
-
-      length =
-        case value
-        when Integer
-          value
-        when String
-          return nil if value.strip.empty?
-
-          unless value.match?(/\A\d+\z/)
+            value.to_i
+          else
             raise ArgumentError, 'truncate debe ser un entero mayor que cero'
           end
 
-          value.to_i
-        else
+        unless length.positive?
           raise ArgumentError, 'truncate debe ser un entero mayor que cero'
         end
 
-      unless length.positive?
-        raise ArgumentError, 'truncate debe ser un entero mayor que cero'
+        length
       end
 
-      length
+      def valid_attribute_name?(name)
+        name.match?(/\A[a-zA-Z_]\w*[!?]?\z/)
+      end
     end
-  end
-
 
     # ============================================================
     # FILTER BUILDER
@@ -314,8 +336,23 @@ module CatalogUi
         primary:,
         **options
       )
-        raise ArgumentError, 'El atributo del filtro no puede estar vacío' if attribute.blank?
-        raise ArgumentError, 'La etiqueta del filtro no puede estar vacía' if label.blank?
+        if attribute.blank?
+          raise ArgumentError, 'El atributo del filtro no puede estar vacío'
+        end
+
+        if label.blank?
+          raise ArgumentError, 'La etiqueta del filtro no puede estar vacía'
+        end
+
+        unless attribute.is_a?(String) || attribute.is_a?(Symbol)
+          raise ArgumentError, 'El atributo del filtro debe ser texto o símbolo'
+        end
+
+        attribute_name = attribute.to_s
+
+        unless attribute_name.match?(/\A[a-zA-Z_]\w*\z/)
+          raise ArgumentError, "Atributo de filtro no válido: #{attribute.inspect}"
+        end
 
         @filters[attribute] = {
           label: label,
@@ -359,6 +396,22 @@ module CatalogUi
       toggle!
     ].freeze
 
+    def normalize_column_attribute!(attribute)
+      unless attribute.is_a?(String) || attribute.is_a?(Symbol)
+        raise ArgumentError,
+              "Atributo de ordenamiento no válido: #{attribute.inspect}"
+      end
+
+      field = attribute.to_s
+
+      unless field.match?(/\A[a-zA-Z_]\w*\z/)
+        raise ArgumentError,
+              "Atributo de ordenamiento no válido: #{attribute.inspect}"
+      end
+
+      field
+    end
+
     def valid_column_attribute?(attribute)
       return false unless attribute.is_a?(String) || attribute.is_a?(Symbol)
 
@@ -379,9 +432,6 @@ module CatalogUi
 
       normalized = action.to_s
 
-      # edit y new generan rutas distintas.
-      # show, update y destroy utilizan la ruta del recurso;
-      # el verbo HTTP determina la operación.
       return normalized.to_sym if %w[edit new].include?(normalized)
       return nil if %w[show update destroy].include?(normalized)
 
@@ -394,11 +444,17 @@ module CatalogUi
 
     def render_text_cell(value, column, search_term)
       text = value.to_s
+      truncate_length = column[:truncate]
 
-      if column[:truncate]
-        length = Integer(column[:truncate])
+      unless truncate_length.nil?
+        length =
+          begin
+            Integer(truncate_length)
+          rescue ArgumentError, TypeError
+            nil
+          end
 
-        if length.positive?
+        if length && length.positive?
           text = truncate(text, length: length)
         end
       end
@@ -425,19 +481,26 @@ module CatalogUi
 
     def render_badge_cell(value, column)
       badge_class = validated_css_classes(
-        column[:badge_class] || 'info'
+        column[:badge_class].presence || 'info'
       )
 
       icon_class = column[:badge_icon].presence
-
       classes = ['bi']
-      classes.concat(validated_css_classes(icon_class).split) if icon_class
+
+      if icon_class
+        classes.concat(validated_css_classes(icon_class).split)
+      end
 
       content_tag(:span, class: "badge-modern #{badge_class}") do
         parts = []
 
         if icon_class
-          parts << content_tag(:i, '', class: classes.join(' '))
+          parts << content_tag(
+            :i,
+            '',
+            class: classes.join(' '),
+            aria: { hidden: true }
+          )
         end
 
         parts << value unless value.nil?

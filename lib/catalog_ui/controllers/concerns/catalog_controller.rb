@@ -7,32 +7,35 @@ module CatalogUi
 
     MAX_SEARCH_TERM_LENGTH = 200
     VALID_SORT_DIRECTIONS = %w[asc desc].freeze
+    DEFAULT_PER_PAGE = 10
+    DEFAULT_MAX_PER_PAGE = 100
 
     included do
       before_action :set_catalog_config
-      helper_method :catalog_config, :catalog_search_term
+
+      helper_method :catalog_config
+      helper_method :catalog_search_term
+      helper_method :catalog_per_page
     end
 
     # ============================================================
     # API PÚBLICA: ORDENAMIENTO
     # ============================================================
 
-    # Aplica ordenamiento seguro a una relación de ActiveRecord.
+    # Aplica ordenamiento seguro a una relación ActiveRecord.
+    #
+    # Ejemplos:
+    #   ?sort=nombre_asc
+    #   ?sort=created_at_desc
     #
     # Uso:
     #   @clients = catalog_apply_sorting(@clients)
     #
-    # Parámetro esperado:
-    #   ?sort=nombre_asc
-    #   ?sort=created_at_desc
-    #
-    # Las columnas se validan contra el modelo de la relación.
-    # Si el parámetro es inválido, se conserva la relación original.
+    # Solo permite columnas reales del modelo de la relación.
     def catalog_apply_sorting(relation)
       return relation unless valid_sort_relation?(relation)
 
       sort_param = params[:sort]
-
       return relation unless sort_param.is_a?(String)
       return relation if sort_param.blank?
 
@@ -41,8 +44,6 @@ module CatalogUi
       return relation unless valid_sort_field?(field, relation: relation)
       return relation unless VALID_SORT_DIRECTIONS.include?(direction)
 
-      # Arel genera una expresión de ordenamiento asociada a la tabla.
-      # No se interpola directamente el parámetro recibido en SQL.
       table = relation.klass.arel_table
       order_node = table[field].public_send(direction)
 
@@ -50,28 +51,28 @@ module CatalogUi
     end
 
     # ============================================================
-    # API PÚBLICA: BÚSQUEDA
+    # API PÚBLICA: BÚSQUEDA GLOBAL
     # ============================================================
 
-    # Devuelve un término textual para resaltar coincidencias en la vista.
+    # Devuelve el texto que debe resaltarse en las vistas.
     #
     # Prioridad:
-    #   1. Búsqueda global (params[:search])
-    #   2. Filtro principal legado (params[:nombre])
-    #   3. Primer valor textual escalar de params[:q]
+    #   1. params[:search]
+    #   2. params[:nombre]
+    #   3. Primer valor escalar de params[:q]
     #
-    # Los parámetros anidados de Ransack no se convierten en texto.
+    # No convierte hashes ni arrays a texto.
     def catalog_search_term
       direct_term = normalized_search_value(params[:search])
-      direct_term ||= normalized_search_value(params[:nombre])
-
       return direct_term if direct_term.present?
 
-      ransack_params = params[:q]
+      legacy_term = normalized_search_value(params[:nombre])
+      return legacy_term if legacy_term.present?
 
-      return nil unless ransack_params.respond_to?(:each_pair)
+      query_params = params[:q]
+      return nil unless query_params.respond_to?(:each_pair)
 
-      ransack_params.each_pair do |_key, value|
+      query_params.each_pair do |_key, value|
         normalized = normalized_search_value(value)
         return normalized if normalized.present?
       end
@@ -79,14 +80,23 @@ module CatalogUi
       nil
     end
 
-    # Búsqueda global en columnas del modelo, útil para un comportamiento
-    # similar al buscador general de DataTables.
+    # Busca un término en varias columnas permitidas.
     #
-    # Por defecto busca en columnas escalares de texto y numéricas.
-    # Se puede limitar explícitamente con catalog_config[:search_fields].
-    #
-    # Uso en el index:
+    # Uso:
     #   @clients = catalog_apply_search(@clients)
+    #
+    # Por defecto utiliza params[:search].
+    # Para utilizar otro término:
+    #   catalog_apply_search(@clients, term: params[:nombre])
+    #
+    # Para definir columnas explícitamente:
+    #   catalog_apply_search(
+    #     @clients,
+    #     fields: %i[nombre nit correo telefono]
+    #   )
+    #
+    # Si la configuración define :search_fields, se utiliza esa lista.
+    # Si no existe, se buscan columnas de texto y numéricas.
     def catalog_apply_search(relation, term: params[:search], fields: nil)
       return relation unless valid_sort_relation?(relation)
 
@@ -94,61 +104,76 @@ module CatalogUi
       return relation if search_term.blank?
 
       model = relation.klass
-      allowed_fields = fields || @catalog_config[:search_fields]
-      allowed_fields ||= model.columns.select do |column|
-        %i[string text integer bigint float decimal].include?(column.type)
-      end.map(&:name)
+      allowed_fields = resolve_search_fields(model, fields)
 
-      allowed_fields = Array(allowed_fields).map(&:to_s)
-      allowed_fields &= model.column_names
-      allowed_fields.select! { |field| field.match?(/\\A[a-zA-Z_]\\w*\\z/) }
       return relation if allowed_fields.empty?
 
       connection = model.connection
-      table_name = connection.quote_table_name(model.table_name)
+      quoted_table = connection.quote_table_name(model.table_name)
       adapter = connection.adapter_name.to_s.downcase
+
       escaped_term = ActiveRecord::Base.sanitize_sql_like(search_term)
       pattern = "%#{escaped_term}%"
 
       conditions = allowed_fields.map do |field|
-        column_name = connection.quote_column_name(field)
-        qualified_column = "#{table_name}.#{column_name}"
+        quoted_column = connection.quote_column_name(field)
+        qualified_column = "#{quoted_table}.#{quoted_column}"
 
-        if %w[postgresql postgresqladapter].any? { |name| adapter.include?(name) }
-          "CAST(#{qualified_column} AS TEXT) ILIKE ?"
-        elsif adapter.include?('mysql')
-          "CAST(#{qualified_column} AS CHAR) LIKE ?"
-        elsif adapter.include?('sqlserver')
-          "CAST(#{qualified_column} AS NVARCHAR(MAX)) LIKE ?"
-        else
-          "CAST(#{qualified_column} AS TEXT) LIKE ?"
-        end
+        search_expression(
+          qualified_column,
+          adapter
+        )
       end
 
-      relation.where(conditions.join(' OR '), *Array.new(conditions.length, pattern))
+      sql = conditions.join(' OR ')
+      binds = Array.new(conditions.length, pattern)
+
+      relation.where("(#{sql})", *binds)
     end
 
-    # Normaliza per_page y aplica el máximo configurable.
+    # ============================================================
+    # API PÚBLICA: PAGINACIÓN
+    # ============================================================
+
+    # Devuelve un número positivo de registros por página.
+    #
+    # Respeta:
+    #   CatalogUi.default_per_page
+    #   CatalogUi.max_per_page
+    #   catalog_config[:default_per_page]
+    #
+    # Uso:
+    #   @clients = @clients.page(params[:page]).per(catalog_per_page)
     def catalog_per_page
       configured_default = catalog_config[:default_per_page].to_i
-      configured_default = CatalogUi.default_per_page.to_i unless configured_default.positive?
-      configured_default = 10 unless configured_default.positive?
+
+      unless configured_default.positive?
+        configured_default = CatalogUi.default_per_page.to_i
+      end
+
+      unless configured_default.positive?
+        configured_default = DEFAULT_PER_PAGE
+      end
 
       maximum = CatalogUi.max_per_page.to_i
-      maximum = 100 unless maximum.positive?
+      maximum = DEFAULT_MAX_PER_PAGE unless maximum.positive?
 
+      default_value = [configured_default, maximum].min
       requested = params[:per_page]
-      requested = requested.to_s if requested.is_a?(Integer)
-      return [configured_default, maximum].min unless requested.is_a?(String)
-      return [configured_default, maximum].min unless requested.match?(/\\A\\d{1,3}\\z/)
 
-      [[requested.to_i, 1].max, maximum].min
+      return default_value unless requested.is_a?(String)
+      return default_value unless requested.match?(/\A\d{1,3}\z/)
+
+      value = requested.to_i
+      return default_value unless value.positive?
+
+      [value, maximum].min
     end
 
     private
 
     # ============================================================
-    # ORDENAMIENTO: VALIDACIÓN
+    # VALIDACIÓN DE RELACIONES
     # ============================================================
 
     def valid_sort_relation?(relation)
@@ -158,12 +183,16 @@ module CatalogUi
         relation.klass.respond_to?(:arel_table)
     end
 
+    # ============================================================
+    # VALIDACIÓN DEL ORDENAMIENTO
+    # ============================================================
+
     def parse_sort_param(sort_param)
       return [nil, nil] unless sort_param.is_a?(String)
       return [nil, nil] if sort_param.blank?
 
-      # Se divide por el último guion bajo para permitir
-      # nombres de columnas como created_at o numero_documento.
+      # Se separa por el último guion bajo.
+      # Ejemplo: created_at_desc => created_at / desc
       field, separator, direction = sort_param.rpartition('_')
 
       return [nil, nil] if separator.empty?
@@ -176,13 +205,13 @@ module CatalogUi
       return false unless field.is_a?(String)
       return false unless field.match?(/\A[a-zA-Z_]\w*\z/)
 
-      model = if valid_sort_relation?(relation)
-                relation.klass
-              else
-                configured_catalog_model
-              end
+      model =
+        if valid_sort_relation?(relation)
+          relation.klass
+        else
+          configured_catalog_model
+        end
 
-      return false unless model
       return false unless model.respond_to?(:column_names)
 
       model.column_names.include?(field)
@@ -192,7 +221,7 @@ module CatalogUi
     # CONFIGURACIÓN DEL CATÁLOGO
     # ============================================================
 
-    # Debe implementarse en el controlador que incorpora el concern.
+    # Debe ser implementado por el controlador que incluya el concern.
     #
     # Ejemplo:
     #
@@ -201,7 +230,12 @@ module CatalogUi
     # def set_catalog_config
     #   @catalog_config = {
     #     model: Client,
-    #     title: 'Clientes'
+    #     title: 'Clientes',
+    #     icon: 'bi-people',
+    #     search_fields: %i[nombre nit correo telefono],
+    #     order_field: :created_at,
+    #     order_direction: :desc,
+    #     default_per_page: 10
     #   }
     # end
     #
@@ -210,18 +244,16 @@ module CatalogUi
             "Debes definir set_catalog_config en #{self.class}"
     end
 
-    # Conserva el acceso público usado por helpers y vistas.
     def catalog_config
       validate_catalog_config!
-
       @catalog_config
     end
 
     def validate_catalog_config!
       unless @catalog_config.respond_to?(:[])
-      raise ArgumentError,
-            'CatalogUi requiere una configuración accesible por claves. ' \
-            'Define @catalog_config en set_catalog_config.'
+        raise ArgumentError,
+              'CatalogUi requiere una configuración accesible por claves. ' \
+              'Define @catalog_config en set_catalog_config.'
       end
 
       model = @catalog_config[:model]
@@ -240,11 +272,73 @@ module CatalogUi
     end
 
     # ============================================================
-    # NORMALIZACIÓN DE BÚSQUEDA
+    # RESOLUCIÓN DE COLUMNAS PARA BÚSQUEDA
+    # ============================================================
+
+    def resolve_search_fields(model, fields)
+      configured_fields =
+        if fields.nil?
+          @catalog_config[:search_fields]
+        else
+          fields
+        end
+
+      # Si se definieron columnas explícitas, no se amplía la búsqueda
+      # automáticamente a otras columnas.
+      if configured_fields.present?
+        candidates = Array(configured_fields)
+      else
+        candidates = model.columns.filter_map do |column|
+          column.name if searchable_column_type?(column.type)
+        end
+      end
+
+      candidates
+        .map(&:to_s)
+        .uniq
+        .select { |field| valid_search_field?(field, model) }
+    end
+
+    def searchable_column_type?(type)
+      %i[
+        string
+        text
+        integer
+        bigint
+        float
+        decimal
+      ].include?(type)
+    end
+
+    def valid_search_field?(field, model)
+      return false unless field.match?(/\A[a-zA-Z_]\w*\z/)
+
+      model.column_names.include?(field)
+    end
+
+    # ============================================================
+    # EXPRESIONES SQL SEGÚN ADAPTADOR
+    # ============================================================
+
+    def search_expression(qualified_column, adapter)
+      if adapter.include?('postgresql')
+        "CAST(#{qualified_column} AS TEXT) ILIKE ?"
+      elsif adapter.include?('mysql')
+        "CAST(#{qualified_column} AS CHAR) LIKE ?"
+      elsif adapter.include?('sqlserver')
+        "CAST(#{qualified_column} AS NVARCHAR(MAX)) LIKE ?"
+      else
+        # SQLite y otros adaptadores compatibles con CAST AS TEXT.
+        "CAST(#{qualified_column} AS TEXT) LIKE ?"
+      end
+    end
+
+    # ============================================================
+    # NORMALIZACIÓN DE TEXTO
     # ============================================================
 
     def normalized_search_value(value)
-      # No convertir hashes, arrays ni parámetros complejos a texto.
+      # Evita convertir parámetros complejos a cadenas.
       return nil unless value.is_a?(String) || value.is_a?(Symbol)
 
       term = value.to_s.strip
