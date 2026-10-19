@@ -1,4 +1,13 @@
 
+<%
+  actions = local_assigns.key?(:actions) ?
+    Array(local_assigns[:actions]).map(&:to_sym) :
+    [:show, :edit, :destroy]
+
+  actions &= [:show, :edit, :destroy]
+  show_actions_column = actions.any?
+%>
+
 <div class="catalog-table-responsive">
   <table class="catalog-table">
     <thead>
@@ -19,7 +28,9 @@
           </th>
         <% end %>
 
-        <th scope="col" class="text-center">Acciones</th>
+        <% if show_actions_column %>
+          <th scope="col" class="text-center">Acciones</th>
+        <% end %>
       </tr>
     </thead>
 
@@ -61,45 +72,52 @@
               </td>
             <% end %>
 
-            <td>
-              <div class="catalog-actions">
-                <% if show_url %>
-                  <%= link_to show_url,
-                              class: 'action-btn',
-                              title: 'Ver',
-                              aria: { label: 'Ver registro' } do %>
-                    <i class="bi bi-eye" aria-hidden="true"></i>
+            <% if show_actions_column %>
+              <td>
+                <div class="catalog-actions">
+
+                  <% if actions.include?(:show) && show_url %>
+                    <%= link_to show_url,
+                                class: 'action-btn',
+                                title: 'Ver',
+                                aria: { label: 'Ver registro' } do %>
+                      <i class="bi bi-eye" aria-hidden="true"></i>
+                    <% end %>
                   <% end %>
 
-                  <%= button_to show_url,
-                                method: :delete,
-                                form: {
-                                  data: {
-                                    turbo_confirm: '¿Estás seguro de que quieres eliminar este registro?'
-                                  }
-                                },
-                                class: 'action-btn danger p-0 border-0 bg-transparent',
-                                title: 'Eliminar',
-                                aria: { label: 'Eliminar registro' } do %>
-                    <i class="bi bi-trash3" aria-hidden="true"></i>
+                  <% if actions.include?(:edit) && edit_url %>
+                    <%= link_to edit_url,
+                                class: 'action-btn',
+                                title: 'Editar',
+                                aria: { label: 'Editar registro' } do %>
+                      <i class="bi bi-pencil" aria-hidden="true"></i>
+                    <% end %>
                   <% end %>
-                <% end %>
 
-                <% if edit_url %>
-                  <%= link_to edit_url,
-                              class: 'action-btn',
-                              title: 'Editar',
-                              aria: { label: 'Editar registro' } do %>
-                    <i class="bi bi-pencil" aria-hidden="true"></i>
+                  <% if actions.include?(:destroy) && show_url %>
+                    <%= button_to show_url,
+                                  method: :delete,
+                                  form: {
+                                    data: {
+                                      turbo_confirm: '¿Estás seguro de que quieres eliminar este registro?'
+                                    }
+                                  },
+                                  class: 'action-btn danger p-0 border-0 bg-transparent',
+                                  title: 'Eliminar',
+                                  aria: { label: 'Eliminar registro' } do %>
+                      <i class="bi bi-trash3" aria-hidden="true"></i>
+                    <% end %>
                   <% end %>
-                <% end %>
-              </div>
-            </td>
+
+                </div>
+              </td>
+            <% end %>
           </tr>
         <% end %>
+
       <% else %>
         <tr>
-          <td colspan="<%= columns.size + 2 %>">
+          <td colspan="<%= columns.size + 1 + (show_actions_column ? 1 : 0) %>">
             <%= render 'catalog_ui/shared/catalog_empty_state',
                        search_term: search_term,
                        clear_path: clear_path,

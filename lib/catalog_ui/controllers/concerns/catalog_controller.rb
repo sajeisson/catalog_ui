@@ -16,6 +16,7 @@ module CatalogUi
       helper_method :catalog_config
       helper_method :catalog_search_term
       helper_method :catalog_per_page
+      helper_method :catalog_actions
     end
 
     # ============================================================
@@ -247,6 +248,23 @@ module CatalogUi
     def catalog_config
       validate_catalog_config!
       @catalog_config
+    end
+
+    def catalog_actions
+      allowed_actions = %i[show edit destroy]
+
+      configured_actions =
+        if catalog_config.key?(:actions)
+          catalog_config[:actions]
+        else
+          allowed_actions
+        end
+
+      Array(configured_actions)
+        .select { |action| action.is_a?(String) || action.is_a?(Symbol) }
+        .map(&:to_sym)
+        .uniq
+        .select { |action| allowed_actions.include?(action) }
     end
 
     def validate_catalog_config!

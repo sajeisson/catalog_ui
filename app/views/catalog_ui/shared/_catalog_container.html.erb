@@ -1,5 +1,5 @@
 
-<%# 
+<%#
   Variables esperadas:
     - title: String
     - icon: String (clase de Bootstrap Icons)
@@ -14,6 +14,7 @@
     - new_button_text: String (opcional)
     - routes_namespace: Namespace de rutas (opcional)
     - resource_name: Nombre del recurso (opcional)
+    - actions: Array de acciones permitidas (opcional)
 %>
 
 <%
@@ -36,6 +37,18 @@
                                       .compact_blank
 
   pagination_label = title.to_s.downcase.split.last || 'registros'
+
+  # Obtiene las acciones desde la configuración central del catálogo.
+  # Mantiene las acciones predeterminadas para usos independientes
+  # del contenedor cuando no se proporciona una configuración.
+  actions =
+    if respond_to?(:catalog_actions)
+      catalog_actions
+    elsif local_assigns.key?(:actions)
+      Array(local_assigns[:actions]).map(&:to_sym) & %i[show edit destroy]
+    else
+      %i[show edit destroy]
+    end
 %>
 
 <div class="container-fluid container-with-margin-index">
@@ -100,7 +113,8 @@
                  new_path: new_path,
                  clear_path: clear_path,
                  routes_namespace: local_assigns[:routes_namespace],
-                 resource_name: local_assigns[:resource_name] %>
+                 resource_name: local_assigns[:resource_name],
+                 actions: actions %>
     <% else %>
       <%= render 'catalog_ui/shared/catalog_table',
                  collection: collection,
@@ -109,7 +123,8 @@
                  new_path: new_path,
                  clear_path: clear_path,
                  routes_namespace: local_assigns[:routes_namespace],
-                 resource_name: local_assigns[:resource_name] %>
+                 resource_name: local_assigns[:resource_name],
+                 actions: actions %>
     <% end %>
 
     <%# PAGINACIÓN %>
